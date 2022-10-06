@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 
 import argparse
-from typing import List
+from email.policy import default
+import json
+from typing import List, Set
 import networkx as nx
 import matplotlib.pyplot as plt
+import math
+from lib.digraph import Digraph
+from lib.kosaraju_scc import KosarajuSCC
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--id', default=1, type=int, choices=[1, 2])
 subparser = parser.add_subparsers(dest='command', required=True)
 
 draw_parser = subparser.add_parser('draw')
-draw_parser.add_argument('-l', '--layout', choices=['circular', 'canonic'], default='canonic')
+draw_parser.add_argument('-l', '--layout', choices=['circular', 'canonic'], default='circular')
 draw_parser.add_argument('--by', choices=['adj', 'inc'], default='adj')
+draw_parser.add_argument('--obj', default='graph', choices=['graph', 'cond_graph'])
 
 subparser.add_parser('test')
 
@@ -19,28 +26,100 @@ group = count_parser.add_mutually_exclusive_group(required=True)
 group.add_argument('--indegree', help="Полустепени захода", action='store_true')
 group.add_argument('--outdegree', help="Полустепени исхода", action='store_true')
 
-ADJ = 'adjacency_matrix'
-INC = 'incidence_matrix'
+scc_parser = subparser.add_parser('scc')
+
+
+ADJ = 'adjacency_matrix%s'
+INC = 'incidence_matrix%s'
+REACH = 'reachability_matrix%s'
+COND_ADJ = 'condensation_adjacency_matrix%s'
 
 
 def main(args):
     if args.command == 'draw':
-        draw_a_graph(args.by)
+        draw_a_graph(args.obj, args.by, args.id)
     elif args.command == 'test':
-        adjacency_matrix = get_adjacency_matrix_by_incidence(read_matrix(INC))
-        write_matrix(ADJ, adjacency_matrix)
+        if args.id == 1:
+            adjacency_matrix = get_adjacency_matrix_by_incidence(read_matrix(INC % args.id))
+            write_matrix(ADJ % args.id, adjacency_matrix)
 
-        incidence_matrix = get_incidence_matrix_by_adjacency(read_matrix(ADJ))
-        write_matrix(INC, incidence_matrix)
+            incidence_matrix = get_incidence_matrix_by_adjacency(read_matrix(ADJ % args.id))
+            write_matrix(INC % args.id, incidence_matrix)
+        elif args.id == 2:
+            adj_matrix = read_matrix(ADJ % args.id)
+            reachability_matrix = get_reachability_matrix_by_adjacency(adj_matrix)
+            write_matrix(REACH % args.id, reachability_matrix)
+
+            digraph = Digraph(len(adj_matrix))
+            for v, w in get_edges_list(adj_matrix):
+                digraph.add_edge(v, w)
+
+            scc: List[Set[int]] = KosarajuSCC(digraph).get_scc()
+            condensation_adj_matrix = get_adjacency_matrix_by_scc_and_reachability(scc, reachability_matrix)
+            write_matrix(COND_ADJ % args.id, condensation_adj_matrix)
+
     elif args.command == 'count':
         if args.indegree:
-            indegrees = get_indegrees(read_matrix(ADJ))
+            indegrees = get_indegrees(read_matrix(ADJ % args.id))
             for i, indegree in enumerate(indegrees):
                 print(f'Полустепени захода x{i+1} = {indegree}')
         elif args.outdegree:
-            indegrees = get_outdegrees(read_matrix(ADJ))
+            indegrees = get_outdegrees(read_matrix(ADJ % args.id))
             for i, indegree in enumerate(indegrees):
                 print(f'Полустепени исхода x{i+1} = {indegree}')
+    elif args.command == 'scc':
+        adj_matrix = read_matrix(ADJ % args.id)
+        reachability_matrix = get_reachability_matrix_by_adjacency(adj_matrix)
+
+        digraph = Digraph(len(adj_matrix))
+        for v, w in get_edges_list(adj_matrix):
+            digraph.add_edge(v, w)
+
+        scc: List[Set[int]] = KosarajuSCC(digraph).get_scc()
+
+        print("Сильные компоненты:")
+        print(json.dumps(
+            {component+1 : [n+1 for n in nodes] for component, nodes in enumerate(scc)},
+            indent=4
+        ))
+
+
+def get_adjacency_matrix_by_scc_and_reachability(scc, reachability_matrix):
+    condensation_adj_matrix = [[0 for _ in range(len(scc))] for _ in range(len(scc))]
+    for i in range(len(scc)):
+        for j in range(i+1, len(scc)):
+            # выбираем произвольную ноду, так как если хоть одна верншина из компонента связности scc[i]
+            # окажется соединенной с любой нодой из scc[j], то и любая другая вершина из scc[i] будет
+            # транзитивно соединена с остальными из scc[j]
+            v = next(iter(scc[i]))
+            w = next(iter(scc[j]))
+            condensation_adj_matrix[i][j] = reachability_matrix[v][w]
+            condensation_adj_matrix[j][i] = reachability_matrix[w][v]
+
+    return condensation_adj_matrix
+
+
+# Floyd–Warshall algorithm, O(|V|^3)
+def get_reachability_matrix_by_adjacency(adjacency_matrix: List[List[int]]):
+    n = len(adjacency_matrix)
+    edges = get_edges_list(adjacency_matrix)
+    dist = [[math.inf for _ in range(n)] for _ in range(n)]
+    for u, v in edges:
+        dist[u][v] = 1
+
+    for k in range(n):
+        for i in range(n):
+            for j in range(n):
+                if dist[i][j] > dist[i][k] + dist[k][j]:
+                    dist[i][j] = dist[i][k] + dist[k][j]
+
+    reachability_matrix = [[0 for _ in range(n)] for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            if dist[i][j] < math.inf:
+                reachability_matrix[i][j] = 1
+
+    return reachability_matrix
 
 
 def get_adjacency_matrix_by_incidence(incidence_matrix: List[List[int]]):
@@ -93,7 +172,7 @@ def get_edges_list(adjacency_matrix: List[List[int]]):
     for i, row in enumerate(adjacency_matrix):
         for j, v in enumerate(row):
             if v == 1:
-                edges.append((i+1, j+1))
+                edges.append((i, j))
 
     return edges
 
@@ -120,17 +199,30 @@ def get_outdegrees(adjacency_matrix: List[List[int]]):
     return outdegrees
 
 
-def draw_a_graph(by: str):
-    if by == 'adj':
-        edges = get_edges_list(read_matrix(ADJ))
-    elif by == 'inc':
-        edges = get_edges_list(get_adjacency_matrix_by_incidence(read_matrix(INC)))
+def draw_a_graph(object: str, by: str, id: int):
+    if object == 'graph':
+        if by == 'adj':
+            edges = get_edges_list(read_matrix(ADJ % id))
+        elif by == 'inc':
+            edges = get_edges_list(get_adjacency_matrix_by_incidence(read_matrix(INC % id)))
+    elif object == 'cond_graph':
+        adj_matrix = read_matrix(ADJ % args.id) # NOTE: для cond_graph безусловно считываем только из adj matrix
+        reachability_matrix = get_reachability_matrix_by_adjacency(adj_matrix)
 
+        digraph = Digraph(len(adj_matrix))
+        for v, w in get_edges_list(adj_matrix):
+            digraph.add_edge(v, w)
+
+        scc: List[Set[int]] = KosarajuSCC(digraph).get_scc()
+        condensation_adj_matrix = get_adjacency_matrix_by_scc_and_reachability(scc, reachability_matrix)
+        edges = get_edges_list(condensation_adj_matrix)
+
+    edges = [ (u+1, v+1) for u, v in edges]
     G = nx.DiGraph([ (f"x{u}", f"x{v}") for u, v in edges])
     edge_labels = {(f"x{u}", f"x{v}"): f"a{i}" for i, (u, v) in enumerate(edges, 1)}
     pos = get_pos(G, args.layout)
     nx.draw_networkx(G, pos, **{"node_color": "white", "edgecolors": "black",})
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, label_pos=0.65)
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, label_pos=0.60)
     ax = plt.gca()
     ax.margins(0.20)
     plt.axis("off")
