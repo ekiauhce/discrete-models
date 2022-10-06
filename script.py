@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import math
 from lib.digraph import Digraph
 from lib.kosaraju_scc import KosarajuSCC
+import itertools
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--id', default=1, type=int, choices=[1, 2])
@@ -28,6 +29,7 @@ group.add_argument('--outdegree', help="Полустепени исхода", ac
 
 scc_parser = subparser.add_parser('scc')
 
+base_parser = subparser.add_parser('base')
 
 ADJ = 'adjacency_matrix%s'
 INC = 'incidence_matrix%s'
@@ -50,11 +52,7 @@ def main(args):
             reachability_matrix = get_reachability_matrix_by_adjacency(adj_matrix)
             write_matrix(REACH % args.id, reachability_matrix)
 
-            digraph = Digraph(len(adj_matrix))
-            for v, w in get_edges_list(adj_matrix):
-                digraph.add_edge(v, w)
-
-            scc: List[Set[int]] = KosarajuSCC(digraph).get_scc()
+            scc: List[Set[int]] = get_scc_by_adjacency_matrix(adj_matrix)
             condensation_adj_matrix = get_adjacency_matrix_by_scc_and_reachability(scc, reachability_matrix)
             write_matrix(COND_ADJ % args.id, condensation_adj_matrix)
 
@@ -71,17 +69,34 @@ def main(args):
         adj_matrix = read_matrix(ADJ % args.id)
         reachability_matrix = get_reachability_matrix_by_adjacency(adj_matrix)
 
-        digraph = Digraph(len(adj_matrix))
-        for v, w in get_edges_list(adj_matrix):
-            digraph.add_edge(v, w)
-
-        scc: List[Set[int]] = KosarajuSCC(digraph).get_scc()
+        scc: List[Set[int]] = get_scc_by_adjacency_matrix(adj_matrix)
 
         print("Сильные компоненты:")
         print(json.dumps(
             {component+1 : [n+1 for n in nodes] for component, nodes in enumerate(scc)},
             indent=4
         ))
+    elif args.command == 'base':
+        adj_matrix = read_matrix(ADJ % args.id)
+        reachability_matrix = get_reachability_matrix_by_adjacency(adj_matrix)
+        scc = get_scc_by_adjacency_matrix(adj_matrix)
+
+        condensation_adj_matrix = get_adjacency_matrix_by_scc_and_reachability(scc, reachability_matrix)
+
+        condensation_base = [i for i, v in enumerate(get_indegrees(condensation_adj_matrix)) if v == 0]
+        print("Базы графа:")
+        components = [component for i, component in enumerate(scc) if i in condensation_base]
+        for base in itertools.product(*components):
+            print(base)
+
+
+def get_scc_by_adjacency_matrix(adj_matrix) -> List[Set[int]]:
+    digraph = Digraph(len(adj_matrix))
+    for v, w in get_edges_list(adj_matrix):
+        digraph.add_edge(v, w)
+
+    return KosarajuSCC(digraph).get_scc()
+
 
 
 def get_adjacency_matrix_by_scc_and_reachability(scc, reachability_matrix):
@@ -208,12 +223,8 @@ def draw_a_graph(object: str, by: str, id: int):
     elif object == 'cond_graph':
         adj_matrix = read_matrix(ADJ % args.id) # NOTE: для cond_graph безусловно считываем только из adj matrix
         reachability_matrix = get_reachability_matrix_by_adjacency(adj_matrix)
+        scc: List[Set[int]] = get_scc_by_adjacency_matrix(adj_matrix)
 
-        digraph = Digraph(len(adj_matrix))
-        for v, w in get_edges_list(adj_matrix):
-            digraph.add_edge(v, w)
-
-        scc: List[Set[int]] = KosarajuSCC(digraph).get_scc()
         condensation_adj_matrix = get_adjacency_matrix_by_scc_and_reachability(scc, reachability_matrix)
         edges = get_edges_list(condensation_adj_matrix)
 
