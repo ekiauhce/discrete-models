@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import argparse
-from email.policy import default
+from copy import deepcopy
 import json
-from typing import List, Set
+from typing import Dict, List, Set
 import networkx as nx
 import matplotlib.pyplot as plt
 import math
@@ -12,7 +12,7 @@ from lib.kosaraju_scc import KosarajuSCC
 import itertools
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--id', default=1, type=int, choices=[1, 2])
+parser.add_argument('--id', default=1, type=int, choices=[1, 2, 3])
 subparser = parser.add_subparsers(dest='command', required=True)
 
 draw_parser = subparser.add_parser('draw')
@@ -28,8 +28,8 @@ group.add_argument('--indegree', help="Полустепени захода", act
 group.add_argument('--outdegree', help="Полустепени исхода", action='store_true')
 
 scc_parser = subparser.add_parser('scc')
-
 base_parser = subparser.add_parser('base')
+indep_sets = subparser.add_parser('indep_sets')
 
 ADJ = 'adjacency_matrix%s'
 INC = 'incidence_matrix%s'
@@ -88,6 +88,67 @@ def main(args):
         components = [component for i, component in enumerate(scc) if i in condensation_base]
         for base in itertools.product(*components):
             print(base)
+
+    elif args.command == 'indep_sets':
+        adj_matrix = read_matrix(ADJ % args.id)
+        graph: Dict[int, Set[int]] = {}
+        for u in range(len(adj_matrix)):
+            for v in range(len(adj_matrix)):
+                if adj_matrix[u][v]:
+                    if u not in graph:
+                        graph[u] = set()
+                    graph[u].add(v)
+
+        result = set()
+        get_max_independent_sets(graph, result)
+
+        result = list(
+            map(
+                lambda s: set([x+1 for x in s]),
+                sorted(list(result), reverse=True, key=lambda x: len(x))
+            )
+        )
+        print("Все независимые множества графа:")
+        for s in result:
+            print(s)
+
+        result = result if result else [[]]
+        print(f"Число независимости: {len(next(iter(result)))}")
+
+
+def get_max_independent_sets(graph: Dict[int, Set[int]], result: Set[Set[int]]):
+    if all(map(lambda adj: len(adj) == 0, graph.values())):
+        result.add(frozenset(graph.keys()))
+        return
+
+    graph_copy: Dict[int, Set[int]] = deepcopy(graph)
+
+    node = next(iter(graph.keys()))
+    adj = set(graph[node])
+    del graph[node]
+    for u in adj:
+        graph[u].remove(node)
+
+    # left branch
+    get_max_independent_sets(graph, result)
+
+    it = iter(graph_copy.keys())
+    node = next(it)
+    while not graph_copy[node]:
+        node = next(it)
+
+    adj = graph_copy[node]
+    graph_copy[node] = set()
+
+    for u in adj:
+        graph_copy[u].remove(node)
+        adj_adj = graph_copy[u]
+        del graph_copy[u]
+        for v in adj_adj:
+            graph_copy[v].remove(u)
+
+    # right branch
+    get_max_independent_sets(graph_copy, result)
 
 
 def get_scc_by_adjacency_matrix(adj_matrix) -> List[Set[int]]:
