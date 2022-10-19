@@ -10,9 +10,10 @@ import math
 from lib.digraph import Digraph
 from lib.kosaraju_scc import KosarajuSCC
 import itertools
+from tabulate import tabulate
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--id', default=1, type=int, choices=[1, 2, 3])
+parser.add_argument('--id', default=1, type=int, choices=[1, 2, 3, 4])
 subparser = parser.add_subparsers(dest='command', required=True)
 
 draw_parser = subparser.add_parser('draw')
@@ -29,7 +30,8 @@ group.add_argument('--outdegree', help="Полустепени исхода", ac
 
 scc_parser = subparser.add_parser('scc')
 base_parser = subparser.add_parser('base')
-indep_sets = subparser.add_parser('indep_sets')
+indep_sets_parser = subparser.add_parser('indep_sets')
+color_parser = subparser.add_parser('color')
 
 ADJ = 'adjacency_matrix%s'
 INC = 'incidence_matrix%s'
@@ -91,13 +93,7 @@ def main(args):
 
     elif args.command == 'indep_sets':
         adj_matrix = read_matrix(ADJ % args.id)
-        graph: Dict[int, Set[int]] = {}
-        for u in range(len(adj_matrix)):
-            for v in range(len(adj_matrix)):
-                if adj_matrix[u][v]:
-                    if u not in graph:
-                        graph[u] = set()
-                    graph[u].add(v)
+        graph: Dict[int, Set[int]] = get_graph_as_dict(adj_matrix)
 
         result = set()
         get_max_independent_sets(graph, result)
@@ -114,6 +110,36 @@ def main(args):
 
         result = result if result else [[]]
         print(f"Число независимости: {len(next(iter(result)))}")
+    elif args.command == 'color':
+        graph = get_graph_as_dict(read_matrix(ADJ % args.id))
+        graph: Dict[int, Set[int]] = dict(sorted(graph.items(), key=lambda x: len(x[1]), reverse=True))
+
+        colors = [-1 for _ in range(len(graph))]
+        color = 0
+        not_colored = list(graph.keys())
+
+        while not_colored:
+            v = not_colored.pop(0)
+            color += 1
+            colors[v] = color
+            not_adj = list(filter(lambda u: u not in graph[v], not_colored))
+            for u in not_adj:
+                if u in not_colored and all(colors[w] != color for w in graph[u]):
+                    colors[u] = color
+                    not_colored.remove(u)
+
+        print(tabulate([[v+1, c] for v, c in enumerate(colors)], headers=['Вершина', 'Цвет']))
+
+
+def get_graph_as_dict(adj_matrix) -> Dict[int, Set[int]]:
+    graph: Dict[int, Set[int]] = {}
+    for u in range(len(adj_matrix)):
+        for v in range(len(adj_matrix)):
+            if adj_matrix[u][v]:
+                if u not in graph:
+                    graph[u] = set()
+                graph[u].add(v)
+    return graph
 
 
 def get_max_independent_sets(graph: Dict[int, Set[int]], result: Set[Set[int]]):
