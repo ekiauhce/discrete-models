@@ -41,7 +41,7 @@ COND_ADJ = 'condensation_adjacency_matrix%s'
 
 def main(args):
     if args.command == 'draw':
-        draw_a_graph(args.obj, args.by, args.id)
+        draw_a_graph(args.obj, args.by, args.id, args.layout)
     elif args.command == 'test':
         if args.id == 1:
             adjacency_matrix = get_adjacency_matrix_by_incidence(read_matrix(INC % args.id))
@@ -129,7 +129,7 @@ def main(args):
                     not_colored.remove(u)
 
         print(tabulate([[v+1, c] for v, c in enumerate(colors)], headers=['Вершина', 'Цвет']))
-
+        draw_a_graph('graph', 'adj', args.id, 'circular', colors)
 
 def get_graph_as_dict(adj_matrix) -> Dict[int, Set[int]]:
     graph: Dict[int, Set[int]] = {}
@@ -301,14 +301,14 @@ def get_outdegrees(adjacency_matrix: List[List[int]]):
     return outdegrees
 
 
-def draw_a_graph(object: str, by: str, id: int):
+def draw_a_graph(object: str, by: str, id: int, layout: str, colors=[]):
     if object == 'graph':
         if by == 'adj':
             edges = get_edges_list(read_matrix(ADJ % id))
         elif by == 'inc':
             edges = get_edges_list(get_adjacency_matrix_by_incidence(read_matrix(INC % id)))
     elif object == 'cond_graph':
-        adj_matrix = read_matrix(ADJ % args.id) # NOTE: для cond_graph безусловно считываем только из adj matrix
+        adj_matrix = read_matrix(ADJ % id) # NOTE: для cond_graph безусловно считываем только из adj matrix
         reachability_matrix = get_reachability_matrix_by_adjacency(adj_matrix)
         scc: List[Set[int]] = get_scc_by_adjacency_matrix(adj_matrix)
 
@@ -318,8 +318,18 @@ def draw_a_graph(object: str, by: str, id: int):
     edges = [ (u+1, v+1) for u, v in edges]
     G = nx.DiGraph([ (f"x{u}", f"x{v}") for u, v in edges])
     edge_labels = {(f"x{u}", f"x{v}"): f"a{i}" for i, (u, v) in enumerate(edges, 1)}
-    pos = get_pos(G, args.layout)
-    nx.draw_networkx(G, pos, **{"node_color": "white", "edgecolors": "black",})
+    pos = get_pos(G, layout)
+
+    opts = {
+        "node_color": "white",
+        "edgecolors": "black",
+    }
+    if colors:
+        opts['cmap'] = plt.get_cmap("Set3")
+        colors = {f"x{i}" : c for i, c in enumerate(colors, 1) }
+        opts["node_color"] = [colors[v] for v in G.nodes]
+
+    nx.draw_networkx(G, pos, **opts)
     nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, label_pos=0.60)
     ax = plt.gca()
     ax.margins(0.20)
