@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
-
+from __future__ import annotations
 import argparse
 from copy import deepcopy
 import json
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 import networkx as nx
 import matplotlib.pyplot as plt
 import math
 from lib.digraph import Digraph
+from lib.edge_weighted_graph import Edge, EdgeWeightedGraph
 from lib.kosaraju_scc import KosarajuSCC
+from lib.mst import KruskalMst, PrimMst
 import itertools
 from tabulate import tabulate
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('--id', default=1, type=int, choices=[1, 2, 3, 4])
+parser.add_argument('--id', default=1, type=int, choices=[1, 2, 3, 4, 5])
 subparser = parser.add_subparsers(dest='command', required=True)
 
 draw_parser = subparser.add_parser('draw')
 draw_parser.add_argument('-l', '--layout', choices=['circular', 'canonic'], default='circular')
 draw_parser.add_argument('--by', choices=['adj', 'inc'], default='adj')
-draw_parser.add_argument('--obj', default='graph', choices=['graph', 'cond_graph'])
+draw_parser.add_argument('--obj', default='graph', choices=['graph', 'cond_graph', 'weighted_graph'])
 
 subparser.add_parser('test')
 
@@ -32,11 +35,14 @@ scc_parser = subparser.add_parser('scc')
 base_parser = subparser.add_parser('base')
 indep_sets_parser = subparser.add_parser('indep_sets')
 color_parser = subparser.add_parser('color')
+mst_parser = subparser.add_parser('mst')
+mst_parser.add_argument('--algorithm', choices=['prim', 'kruskal'], required=True)
 
 ADJ = 'adjacency_matrix%s'
 INC = 'incidence_matrix%s'
 REACH = 'reachability_matrix%s'
 COND_ADJ = 'condensation_adjacency_matrix%s'
+WEIGHTED_EDGES = 'weighted_edges%s'
 
 
 def main(args):
@@ -78,6 +84,38 @@ def main(args):
             {component+1 : [n+1 for n in nodes] for component, nodes in enumerate(scc)},
             indent=4
         ))
+    elif args.command == 'mst':
+        edges = read_weighted_edges(WEIGHTED_EDGES % args.id)
+        vertices: Set[int] = set()
+        for e in edges:
+            vertices.add(e[0])
+            vertices.add(e[1])
+        weighted_graph = EdgeWeightedGraph(len(vertices))
+        for e in edges:
+            weighted_graph.add_edge(Edge(*e))
+        mst = PrimMst(weighted_graph) if args.algorithm == 'prim' else KruskalMst(weighted_graph)
+        mst_edges = mst.get_edges()
+
+        nx_graph = nx.Graph()
+        for e in mst_edges:
+            v = e.either()
+            w = e.other(v)
+            nx_graph.add_edge(v+1, w+1, weight=e.get_weight())
+        pos = nx.circular_layout(nx_graph)
+        opts = {
+            "node_color": "white",
+            "edgecolors": "black",
+        }
+        nx.draw_networkx(nx_graph, pos, **opts)
+        edge_labels = nx.get_edge_attributes(nx_graph, "weight")
+        nx.draw_networkx_edge_labels(nx_graph, pos, edge_labels)
+
+        ax = plt.gca()
+        ax.margins(0.08)
+        plt.axis("off")
+        plt.tight_layout()
+        plt.show()
+
     elif args.command == 'base':
         adj_matrix = read_matrix(ADJ % args.id)
         reachability_matrix = get_reachability_matrix_by_adjacency(adj_matrix)
@@ -302,6 +340,11 @@ def get_outdegrees(adjacency_matrix: List[List[int]]):
 
 
 def draw_a_graph(object: str, by: str, id: int, layout: str, colors=[]):
+    opts = {
+        "node_color": "white",
+        "edgecolors": "black",
+    }
+
     if object == 'graph':
         if by == 'adj':
             edges = get_edges_list(read_matrix(ADJ % id))
@@ -314,16 +357,29 @@ def draw_a_graph(object: str, by: str, id: int, layout: str, colors=[]):
 
         condensation_adj_matrix = get_adjacency_matrix_by_scc_and_reachability(scc, reachability_matrix)
         edges = get_edges_list(condensation_adj_matrix)
+    elif object == 'weighted_graph':
+        edges = read_weighted_edges(WEIGHTED_EDGES % id)
+
+        nx_graph = nx.Graph()
+        for e in edges:
+            nx_graph.add_edge(e[0]+1, e[1]+1, weight=e[2])
+        pos = nx.circular_layout(nx_graph)
+        nx.draw_networkx(nx_graph, pos, **opts)
+        edge_labels = nx.get_edge_attributes(nx_graph, "weight")
+        nx.draw_networkx_edge_labels(nx_graph, pos, edge_labels, label_pos=0.65)
+
+        ax = plt.gca()
+        ax.margins(0.04)
+        plt.axis("off")
+        # plt.tight_layout()
+        plt.show()
+        return
 
     edges = [ (u+1, v+1) for u, v in edges]
     G = nx.DiGraph([ (f"x{u}", f"x{v}") for u, v in edges])
     edge_labels = {(f"x{u}", f"x{v}"): f"a{i}" for i, (u, v) in enumerate(edges, 1)}
     pos = get_pos(G, layout)
 
-    opts = {
-        "node_color": "white",
-        "edgecolors": "black",
-    }
     if colors:
         opts['cmap'] = plt.get_cmap("Set3")
         colors = {f"x{i}" : c for i, c in enumerate(colors, 1) }
@@ -340,6 +396,14 @@ def draw_a_graph(object: str, by: str, id: int, layout: str, colors=[]):
 def read_matrix(name: str) -> List[List[int]]:
     with open(f"{name}.in", "r") as f:
         return [list(map(int, line.rstrip('\n').split())) for line in f.readlines()]
+
+def read_weighted_edges(name: str) -> List[Tuple[int, int, float]]:
+    with open(f"{name}.in", "r") as f:
+        result = []
+        for line in f.readlines():
+            v, w, weight = line.rstrip('\n').split()
+            result.append((int(v)-1, int(w)-1, float(weight)))
+        return result
 
 def write_matrix(name: str, matrix: List[List[int]]) -> None:
     with open(f"{name}.out", 'w') as f:
