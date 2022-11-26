@@ -8,7 +8,11 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import math
 from lib.digraph import Digraph
-from lib.edge_weighted_graph import Edge, EdgeWeightedGraph
+from lib.dijkstra_sp import DijkstraSP
+from lib.directed_edge import DirectedEdge
+from lib.edge_weighted_digraph import EdgeWeightedDigraph
+from lib.edge_weighted_graph import EdgeWeightedGraph
+from lib.edge import Edge
 from lib.kosaraju_scc import KosarajuSCC
 from lib.mst import KruskalMst, PrimMst
 import itertools
@@ -16,7 +20,7 @@ from tabulate import tabulate
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--id', default=1, type=int, choices=[1, 2, 3, 4, 5])
+parser.add_argument('--id', default=1, type=int, choices=[1, 2, 3, 4, 5, 6])
 subparser = parser.add_subparsers(dest='command', required=True)
 
 draw_parser = subparser.add_parser('draw')
@@ -37,6 +41,9 @@ indep_sets_parser = subparser.add_parser('indep_sets')
 color_parser = subparser.add_parser('color')
 mst_parser = subparser.add_parser('mst')
 mst_parser.add_argument('--algorithm', choices=['prim', 'kruskal'], required=True)
+
+sp_parser = subparser.add_parser('sp')
+sp_parser.add_argument('--start-vertex', type=int, required=True)
 
 ADJ = 'adjacency_matrix%s'
 INC = 'incidence_matrix%s'
@@ -115,6 +122,20 @@ def main(args):
         plt.axis("off")
         plt.tight_layout()
         plt.show()
+
+    elif args.command == 'sp':
+        edges = read_weighted_edges(WEIGHTED_EDGES % args.id)
+        vertices: Set[int] = set()
+        for e in edges:
+            vertices.add(e[0])
+            vertices.add(e[1])
+        weighted_digraph = EdgeWeightedDigraph(len(vertices))
+        for e in edges:
+            weighted_digraph.add_edge(DirectedEdge(*e))
+        sp = DijkstraSP(weighted_digraph, args.start_vertex-1)
+        for v in sorted(list(vertices)):
+            print(f"Path to {v+1} is {sp.get_path_to(v)}. Total weight is {sp.get_dist_to(v)}")
+
 
     elif args.command == 'base':
         adj_matrix = read_matrix(ADJ % args.id)
