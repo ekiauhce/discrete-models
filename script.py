@@ -8,13 +8,11 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import math
 from lib.digraph import Digraph
-from lib.dijkstra_sp import DijkstraSP
-from lib.directed_edge import DirectedEdge
-from lib.edge_weighted_digraph import EdgeWeightedDigraph
-from lib.edge_weighted_graph import EdgeWeightedGraph
-from lib.edge import Edge
+from lib.shortest_path import BellmanSP, DijkstraSP
+from lib.edge_weighted_digraph import EdgeWeightedDigraph, DirectedEdge
+from lib.edge_weighted_graph import EdgeWeightedGraph, Edge
 from lib.kosaraju_scc import KosarajuSCC
-from lib.mst import KruskalMst, PrimMst
+from lib.minimal_spanning_tree import KruskalMST, PrimMST
 import itertools
 from tabulate import tabulate
 
@@ -44,12 +42,13 @@ mst_parser.add_argument('--algorithm', choices=['prim', 'kruskal'], required=Tru
 
 sp_parser = subparser.add_parser('sp')
 sp_parser.add_argument('--start-vertex', type=int, required=True)
+sp_parser.add_argument('--algorithm', choices=['dijkstra', 'bellman'], required=True)
 
-ADJ = 'adjacency_matrix%s'
-INC = 'incidence_matrix%s'
-REACH = 'reachability_matrix%s'
-COND_ADJ = 'condensation_adjacency_matrix%s'
-WEIGHTED_EDGES = 'weighted_edges%s'
+ADJ = 'resources/adjacency_matrix%s'
+INC = 'resources/incidence_matrix%s'
+REACH = 'resources/reachability_matrix%s'
+COND_ADJ = 'resources/condensation_adjacency_matrix%s'
+WEIGHTED_EDGES = 'resources/weighted_edges%s'
 
 
 def main(args):
@@ -100,7 +99,11 @@ def main(args):
         weighted_graph = EdgeWeightedGraph(len(vertices))
         for e in edges:
             weighted_graph.add_edge(Edge(*e))
-        mst = PrimMst(weighted_graph) if args.algorithm == 'prim' else KruskalMst(weighted_graph)
+        if args.algorithm == 'prim':
+            mst = PrimMST(weighted_graph)
+        elif args.algorithm == 'kruskal':
+            mst = KruskalMST(weighted_graph)
+
         mst_edges = mst.get_edges()
 
         nx_graph = nx.Graph()
@@ -132,7 +135,11 @@ def main(args):
         weighted_digraph = EdgeWeightedDigraph(len(vertices))
         for e in edges:
             weighted_digraph.add_edge(DirectedEdge(*e))
-        sp = DijkstraSP(weighted_digraph, args.start_vertex-1)
+        if args.algorithm == 'dijkstra':
+            sp = DijkstraSP(weighted_digraph, args.start_vertex-1)
+        elif args.algorithm == 'bellman':
+            sp = BellmanSP(weighted_digraph, args.start_vertex-1)
+
         for v in sorted(list(vertices)):
             print(f"Path to {v+1} is {sp.get_path_to(v)}. Total weight is {sp.get_dist_to(v)}")
 

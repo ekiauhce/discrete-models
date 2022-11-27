@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import List
-from lib.edge import Edge
+from functools import total_ordering
+
 
 class EdgeWeightedGraph:
     def __init__(self, V: int) -> None:
@@ -18,12 +19,6 @@ class EdgeWeightedGraph:
     def get_adj(self, v: int) -> List[Edge]:
         return self.adj[v]
 
-    def get_v(self) -> int:
-        return self.V
-
-    def get_e(self) -> int:
-        return self.E
-
     def get_edges(self) -> List[Edge]:
         result = []
         for v in range(self.V):
@@ -31,3 +26,34 @@ class EdgeWeightedGraph:
                 if e.other(v) > v:
                     result.append(e)
         return result
+
+
+@total_ordering
+class Edge:
+    def __init__(self, v: int, w: int, weight: float) -> None:
+        self.v = v
+        self.w = w
+        self.weight = weight
+
+    def either(self) -> int:
+        return self.v
+
+    def other(self, vertex: int) -> int:
+        if vertex == self.v:
+            return self.w
+        elif vertex == self.w:
+            return self.v
+        else:
+            raise ValueError(f"Got inconsistent vertex {vertex}")
+
+    def get_weight(self) -> float:
+        return self.weight
+
+    def __eq__(self, that):
+        return isinstance(that, Edge) and self.weight == that.weight
+
+    def __lt__(self, that):
+        return isinstance(that, Edge) and self.weight < that.weight
+
+    def __repr__(self) -> str:
+        return f'({self.v}, {self.w}, {self.weight})'

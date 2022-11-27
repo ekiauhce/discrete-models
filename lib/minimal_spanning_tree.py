@@ -1,14 +1,14 @@
 from __future__ import annotations
 from typing import List
-from lib.edge_weighted_graph import Edge
-from lib.edge_weighted_graph import EdgeWeightedGraph
+from .edge_weighted_graph import Edge
+from .edge_weighted_graph import EdgeWeightedGraph
 import heapq
 
-from lib.union_find import UnionFind
+from .union_find import UnionFind
 
-class PrimMst:
+class PrimMST:
     def __init__(self, graph: EdgeWeightedGraph) -> None:
-        self.marked = [False for _ in range(graph.get_v())]
+        self.marked = [False for _ in range(graph.V)]
         self.mst: List[Edge] = []
         self.pq: List[Edge] = []
         self.total = 0.
@@ -41,15 +41,15 @@ class PrimMst:
             if not self.marked[edge.other(v)]:
                 heapq.heappush(self.pq, edge)
 
-class KruskalMst:
+class KruskalMST:
     def __init__(self, graph: EdgeWeightedGraph) -> None:
         self.mst: List[Edge] = []
         self.pq: List[Edge] = []
         for edge in graph.get_edges():
             heapq.heappush(self.pq, edge)
-        uf = UnionFind(graph.get_v())
+        uf = UnionFind(graph.V)
 
-        while self.pq and len(self.mst) < graph.get_v() - 1:
+        while self.pq and len(self.mst) < graph.V - 1:
             edge = heapq.heappop(self.pq)
             v = edge.either()
             w = edge.other(v)
