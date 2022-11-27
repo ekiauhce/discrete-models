@@ -18,7 +18,7 @@ from tabulate import tabulate
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--id', default=1, type=int, choices=[1, 2, 3, 4, 5, 6])
+parser.add_argument('--id', default=1, type=int, choices=[1, 2, 3, 4, 5, 6, 7])
 subparser = parser.add_subparsers(dest='command', required=True)
 
 draw_parser = subparser.add_parser('draw')
