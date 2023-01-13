@@ -77,44 +77,44 @@ def nanos_to_ms(nanos):
     return nanos / 1_000_000
 
 if __name__ == '__main__':
-import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
 
-RETRIES = 5
-LO_ITEMS_COUNT = 100
-HI_ITEMS_COUNT = 1001
-ITEMS_COUNT_STEP = 100
-LO_WEIGHT = LO_COST = 1
-HI_WEIGHT = HI_COST = 15
-LO_CAPACITY = 20
-HI_CAPACITY = 51
-CAPACITY_STEP = 10
+    RETRIES = 5
+    LO_ITEMS_COUNT = 100
+    HI_ITEMS_COUNT = 1001
+    ITEMS_COUNT_STEP = 100
+    LO_WEIGHT = LO_COST = 1
+    HI_WEIGHT = HI_COST = 15
+    LO_CAPACITY = 20
+    HI_CAPACITY = 51
+    CAPACITY_STEP = 10
 
-x_values = []
-y_values_per_capacity = {}
-for items_count in range(
-    LO_ITEMS_COUNT, HI_ITEMS_COUNT, ITEMS_COUNT_STEP):
-    x_values.append(items_count)
-    weights = [
-        randint(LO_WEIGHT, HI_WEIGHT) for _ in range(items_count)
-    ]
-    costs = [
-        randint(LO_COST, HI_COST) for _ in range(items_count)
-    ]
+    x_values = []
+    y_values_per_capacity = {}
+    for items_count in range(
+        LO_ITEMS_COUNT, HI_ITEMS_COUNT, ITEMS_COUNT_STEP):
+        x_values.append(items_count)
+        weights = [
+            randint(LO_WEIGHT, HI_WEIGHT) for _ in range(items_count)
+        ]
+        costs = [
+            randint(LO_COST, HI_COST) for _ in range(items_count)
+        ]
 
-    for capacity in range(LO_CAPACITY, HI_CAPACITY, CAPACITY_STEP):
-        elapsed_time = []
-        for _ in range(RETRIES):
-            start = time.time_ns()
-            get_max_cost_dp(costs, weights, capacity)
-            elapsed_time.append(
-                nanos_to_ms(time.time_ns() - start)
-            )
-        y_values_per_capacity.setdefault(capacity, []). \
-            append(statistics.median(elapsed_time))
+        for capacity in range(LO_CAPACITY, HI_CAPACITY, CAPACITY_STEP):
+            elapsed_time = []
+            for _ in range(RETRIES):
+                start = time.time_ns()
+                get_max_cost_dp(costs, weights, capacity)
+                elapsed_time.append(
+                    nanos_to_ms(time.time_ns() - start)
+                )
+            y_values_per_capacity.setdefault(capacity, []). \
+                append(statistics.median(elapsed_time))
 
-for capacity, y_values in y_values_per_capacity.items():
-    plt.plot(x_values, y_values, label=f"capacity={capacity}")
-plt.xlabel("number of items")
-plt.ylabel("ms")
-plt.legend(loc="upper left")
-plt.show()
+    for capacity, y_values in y_values_per_capacity.items():
+        plt.plot(x_values, y_values, label=f"capacity={capacity}")
+    plt.xlabel("number of items")
+    plt.ylabel("ms")
+    plt.legend(loc="upper left")
+    plt.show()
